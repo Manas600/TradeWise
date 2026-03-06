@@ -18,8 +18,9 @@ const TRADE_WINDOW_MS = 60_000;
 const NUDGE_THRESHOLD = 3;
 const FREEZE_THRESHOLD = 5;
 
-const QuickTrade = ({ assets, currentLevel, isAssetUnlocked, onBuy, cashBalance }: Props) => {
-  const [selectedAsset, setSelectedAsset] = useState(assets[0]?.id ?? "");
+const QuickTrade = ({ assets = [], currentLevel, isAssetUnlocked, onBuy, cashBalance }: Props) => {
+  const firstUnlocked = assets.find((a) => isAssetUnlocked(a));
+  const [selectedAsset, setSelectedAsset] = useState(firstUnlocked?.id ?? assets[0]?.id ?? "");
   const [isFrozen, setIsFrozen] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [tradeCount, setTradeCount] = useState(0);
