@@ -3,52 +3,47 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import CoolDownModal from "./CoolDownModal";
-import { Zap, AlertTriangle, TrendingUp } from "lucide-react";
+import { Zap, AlertTriangle, TrendingUp, Lock } from "lucide-react";
+import type { MarketAsset } from "@/hooks/useGameState";
 
-const assets = [
-  { value: "nifty-etf", label: "Nifty 50 ETF", risk: "low" },
-  { value: "reliance", label: "Reliance Industries", risk: "medium" },
-  { value: "btc", label: "Bitcoin (BTC)", risk: "high" },
-  { value: "doge", label: "Dogecoin (DOGE)", risk: "high" },
-  { value: "nifty-options", label: "Nifty Options (CE)", risk: "high" },
-];
+interface Props {
+  assets: MarketAsset[];
+  currentLevel: number;
+  isAssetUnlocked: (asset: MarketAsset) => boolean;
+  onBuy: (assetId: string) => boolean;
+  cashBalance: number;
+}
 
-const TRADE_WINDOW_MS = 60_000; // 1-minute window
+const TRADE_WINDOW_MS = 60_000;
 const NUDGE_THRESHOLD = 3;
 const FREEZE_THRESHOLD = 5;
 
-const QuickTrade = () => {
-  const [selectedAsset, setSelectedAsset] = useState("nifty-etf");
+const QuickTrade = ({ assets, currentLevel, isAssetUnlocked, onBuy, cashBalance }: Props) => {
+  const [selectedAsset, setSelectedAsset] = useState(assets[0]?.id ?? "");
   const [isFrozen, setIsFrozen] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [tradeCount, setTradeCount] = useState(0);
   const tradeTimestamps = useRef<number[]>([]);
   const { toast } = useToast();
 
-  const currentAsset = assets.find((a) => a.value === selectedAsset);
-  const isHighRisk = currentAsset?.risk === "high";
+  const currentAsset = assets.find((a) => a.id === selectedAsset);
+  const unlocked = currentAsset ? isAssetUnlocked(currentAsset) : false;
 
-  /** Core AI Risk-Brake logic */
   const handleBuy = useCallback(() => {
-    if (isFrozen) return;
+    if (isFrozen || !currentAsset || !unlocked) return;
 
     const now = Date.now();
-    // Keep only trades within the window
-    tradeTimestamps.current = tradeTimestamps.current.filter(
-      (t) => now - t < TRADE_WINDOW_MS
-    );
+    tradeTimestamps.current = tradeTimestamps.current.filter((t) => now - t < TRADE_WINDOW_MS);
     tradeTimestamps.current.push(now);
     const count = tradeTimestamps.current.length;
     setTradeCount(count);
 
-    // Trigger 2: Hard freeze at 5 rapid trades
     if (count >= FREEZE_THRESHOLD) {
       setIsFrozen(true);
       setShowModal(true);
       return;
     }
 
-    // Trigger 1: Nudge toast at 3 rapid trades
     if (count >= NUDGE_THRESHOLD) {
       toast({
         title: "⚠️ Hold up!",
@@ -58,27 +53,22 @@ const QuickTrade = () => {
       });
     }
 
-    // Visual feedback for successful trade
-    if (count < NUDGE_THRESHOLD) {
+    const success = onBuy(selectedAsset);
+    if (success && count < NUDGE_THRESHOLD) {
       toast({
         title: "✅ Trade Executed",
-        description: `Bought ${currentAsset?.label} successfully.`,
+        description: `Bought 1x ${currentAsset.label} at ₹${currentAsset.price.toLocaleString()}.`,
         duration: 2000,
       });
     }
-  }, [isFrozen, toast, currentAsset]);
+  }, [isFrozen, toast, currentAsset, unlocked, onBuy, selectedAsset]);
 
-  /** Reset after cool-down */
   const handleCoolDownComplete = useCallback(() => {
     setShowModal(false);
     setIsFrozen(false);
     setTradeCount(0);
     tradeTimestamps.current = [];
-    toast({
-      title: "🟢 Trading Resumed",
-      description: "Cool-down complete. Trade responsibly.",
-      duration: 3000,
-    });
+    toast({ title: "🟢 Trading Resumed", description: "Cool-down complete. Trade responsibly.", duration: 3000 });
   }, [toast]);
 
   return (
@@ -91,93 +81,100 @@ const QuickTrade = () => {
           </h2>
         </div>
 
-        {/* Asset selector */}
         <div className="space-y-4">
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-              Select Asset
-            </label>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Select Asset</label>
             <Select value={selectedAsset} onValueChange={setSelectedAsset}>
               <SelectTrigger className="border-border bg-secondary text-foreground">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="border-border bg-card">
-                {assets.map((asset) => (
-                  <SelectItem key={asset.value} value={asset.value}>
-                    <span className="flex items-center gap-2">
-                      {asset.label}
-                      {asset.risk === "high" && (
-                        <span className="rounded bg-neon-red/10 px-1.5 py-0.5 text-[10px] font-bold text-neon-red">
-                          HIGH RISK
-                        </span>
-                      )}
-                    </span>
-                  </SelectItem>
-                ))}
+                {assets.map((asset) => {
+                  const locked = !isAssetUnlocked(asset);
+                  return (
+                    <SelectItem key={asset.id} value={asset.id} disabled={locked}>
+                      <span className="flex items-center gap-2">
+                        {asset.label}
+                        {locked && <Lock className="h-3 w-3 text-muted-foreground" />}
+                        {asset.volatility === "high" && !locked && (
+                          <span className="rounded bg-neon-red/10 px-1.5 py-0.5 text-[10px] font-bold text-neon-red">
+                            HIGH RISK
+                          </span>
+                        )}
+                        {locked && (
+                          <span className="text-[10px] text-muted-foreground">
+                            Lvl {asset.requiredLevel}
+                          </span>
+                        )}
+                      </span>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>
 
-          {/* Risk warning for high-risk assets */}
-          {isHighRisk && (
-            <div className="flex items-start gap-2 rounded-lg border border-neon-amber/30 bg-neon-amber/5 p-3 animate-slide-up">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-neon-amber" />
-              <p className="text-xs text-neon-amber">
-                This is a high-volatility asset. GuardRail's AI Risk-Brake is active and monitoring your trading velocity.
+          {!unlocked && currentAsset && (
+            <div className="flex items-start gap-2 rounded-lg border border-neon-red/30 bg-neon-red/5 p-3">
+              <Lock className="mt-0.5 h-4 w-4 shrink-0 text-neon-red" />
+              <p className="text-xs text-neon-red">
+                This asset requires Level {currentAsset.requiredLevel}. Keep earning XP to unlock it!
               </p>
             </div>
           )}
 
-          {/* Mock price */}
-          <div className="rounded-lg bg-secondary/50 p-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Current Price</span>
-              <span className="flex items-center gap-1 text-sm font-mono font-bold text-foreground">
-                <TrendingUp className="h-3 w-3 text-neon-green" />
-                ₹{isHighRisk ? "4,52,300" : "23,150"}
-              </span>
+          {unlocked && currentAsset?.volatility === "high" && (
+            <div className="flex items-start gap-2 rounded-lg border border-neon-amber/30 bg-neon-amber/5 p-3 animate-slide-up">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-neon-amber" />
+              <p className="text-xs text-neon-amber">
+                High-volatility asset. AI Risk-Brake is active and monitoring trading velocity.
+              </p>
             </div>
-            <div className="mt-1 flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Qty</span>
-              <span className="text-sm font-mono text-foreground">1</span>
-            </div>
-          </div>
+          )}
 
-          {/* Trade velocity indicator */}
+          {currentAsset && (
+            <div className="rounded-lg bg-secondary/50 p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Current Price</span>
+                <span className="flex items-center gap-1 text-sm font-mono font-bold text-foreground">
+                  <TrendingUp className="h-3 w-3 text-neon-green" />
+                  ₹{currentAsset.price.toLocaleString()}
+                </span>
+              </div>
+              <div className="mt-1 flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Cash Available</span>
+                <span className="text-sm font-mono text-foreground">₹{cashBalance.toLocaleString()}</span>
+              </div>
+            </div>
+          )}
+
           {tradeCount > 0 && (
             <div className="flex items-center justify-between rounded-lg bg-secondary/50 px-3 py-2">
               <span className="text-xs text-muted-foreground">Trades this minute</span>
-              <span
-                className={`font-mono text-sm font-bold ${
-                  tradeCount >= NUDGE_THRESHOLD ? "text-neon-red text-glow-red" : "text-foreground"
-                }`}
-              >
+              <span className={`font-mono text-sm font-bold ${tradeCount >= NUDGE_THRESHOLD ? "text-neon-red text-glow-red" : "text-foreground"}`}>
                 {tradeCount} / {FREEZE_THRESHOLD}
               </span>
             </div>
           )}
 
-          {/* BUY Button */}
           <Button
             onClick={handleBuy}
-            disabled={isFrozen}
+            disabled={isFrozen || !unlocked}
             className={`w-full gap-2 text-base font-bold transition-all ${
               isFrozen
                 ? "cursor-not-allowed border border-neon-red/30 bg-neon-red/10 text-neon-red opacity-60"
+                : !unlocked
+                ? "cursor-not-allowed border border-border bg-secondary text-muted-foreground opacity-50"
                 : "bg-neon-blue text-primary-foreground glow-blue hover:bg-neon-blue/90"
             }`}
             size="lg"
           >
             {isFrozen ? (
-              <>
-                <AlertTriangle className="h-4 w-4" />
-                TRADING LOCKED
-              </>
+              <><AlertTriangle className="h-4 w-4" /> TRADING LOCKED</>
+            ) : !unlocked ? (
+              <><Lock className="h-4 w-4" /> LOCKED</>
             ) : (
-              <>
-                <Zap className="h-4 w-4" />
-                BUY
-              </>
+              <><Zap className="h-4 w-4" /> BUY</>
             )}
           </Button>
 

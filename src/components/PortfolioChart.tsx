@@ -1,45 +1,52 @@
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import type { MarketAsset } from "@/hooks/useGameState";
 
-const data = [
-  { month: "Jan", value: 10000 },
-  { month: "Feb", value: 10250 },
-  { month: "Mar", value: 10180 },
-  { month: "Apr", value: 10520 },
-  { month: "May", value: 10780 },
-  { month: "Jun", value: 10650 },
-  { month: "Jul", value: 11100 },
-  { month: "Aug", value: 11400 },
-  { month: "Sep", value: 11350 },
-  { month: "Oct", value: 11800 },
-  { month: "Nov", value: 12100 },
-  { month: "Dec", value: 12450 },
-];
+interface Props {
+  assets: MarketAsset[];
+  month: number;
+}
 
-const PortfolioChart = () => {
+const COLORS: Record<string, string> = {
+  "nifty-etf": "hsl(142, 71%, 45%)",
+  bluechip: "hsl(210, 100%, 55%)",
+  "fo-crypto": "hsl(0, 85%, 55%)",
+};
+
+const PortfolioChart = ({ assets, month }: Props) => {
+  // Build chart data from price histories
+  const maxLen = Math.max(...assets.map((a) => a.priceHistory.length));
+  const data = Array.from({ length: maxLen }, (_, i) => {
+    const point: Record<string, string | number> = { month: `M${i}` };
+    assets.forEach((a) => {
+      if (i < a.priceHistory.length) {
+        point[a.id] = a.priceHistory[i];
+      }
+    });
+    return point;
+  });
+
   return (
     <div className="rounded-xl border border-border bg-card p-5">
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-            Portfolio Growth
+            Market Prices
           </h2>
-          <p className="text-2xl font-bold text-foreground">
-            ₹12,450
-            <span className="ml-2 text-sm font-medium text-neon-green">+24.5%</span>
+          <p className="text-xs text-muted-foreground">
+            Simulated over {month} month{month !== 1 ? "s" : ""}
           </p>
         </div>
-        <span className="rounded-full bg-neon-green/10 px-3 py-1 text-xs font-semibold text-neon-green">
-          Low Risk
-        </span>
       </div>
 
-      <ResponsiveContainer width="100%" height={180}>
+      <ResponsiveContainer width="100%" height={200}>
         <AreaChart data={data}>
           <defs>
-            <linearGradient id="portfolioGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="hsl(210, 100%, 55%)" stopOpacity={0.3} />
-              <stop offset="100%" stopColor="hsl(210, 100%, 55%)" stopOpacity={0} />
-            </linearGradient>
+            {assets.map((a) => (
+              <linearGradient key={a.id} id={`grad-${a.id}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={COLORS[a.id]} stopOpacity={0.3} />
+                <stop offset="100%" stopColor={COLORS[a.id]} stopOpacity={0} />
+              </linearGradient>
+            ))}
           </defs>
           <XAxis
             dataKey="month"
@@ -47,7 +54,7 @@ const PortfolioChart = () => {
             tickLine={false}
             tick={{ fontSize: 10, fill: "hsl(215, 12%, 55%)" }}
           />
-          <YAxis hide domain={["dataMin - 500", "dataMax + 500"]} />
+          <YAxis hide />
           <Tooltip
             contentStyle={{
               background: "hsl(228, 15%, 14%)",
@@ -56,15 +63,20 @@ const PortfolioChart = () => {
               fontSize: "12px",
               color: "hsl(210, 20%, 92%)",
             }}
-            formatter={(value: number) => [`₹${value.toLocaleString()}`, "Value"]}
+            formatter={(value: number) => [`₹${value.toLocaleString()}`, ""]}
           />
-          <Area
-            type="monotone"
-            dataKey="value"
-            stroke="hsl(210, 100%, 55%)"
-            strokeWidth={2}
-            fill="url(#portfolioGradient)"
-          />
+          <Legend wrapperStyle={{ fontSize: "11px" }} />
+          {assets.map((a) => (
+            <Area
+              key={a.id}
+              type="monotone"
+              dataKey={a.id}
+              name={a.label}
+              stroke={COLORS[a.id]}
+              strokeWidth={2}
+              fill={`url(#grad-${a.id})`}
+            />
+          ))}
         </AreaChart>
       </ResponsiveContainer>
     </div>
