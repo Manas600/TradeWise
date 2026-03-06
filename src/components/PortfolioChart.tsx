@@ -12,8 +12,15 @@ const COLORS: Record<string, string> = {
   "fo-crypto": "hsl(0, 85%, 55%)",
 };
 
-const PortfolioChart = ({ assets, month }: Props) => {
-  // Build chart data from price histories
+const PortfolioChart = ({ assets = [], month }: Props) => {
+  if (!assets || assets.length === 0) {
+    return (
+      <div className="rounded-xl border border-border bg-card p-5">
+        <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">Market Prices</h2>
+        <p className="mt-2 text-xs text-muted-foreground">No market data yet. Click "Simulate 1 Month" to begin.</p>
+      </div>
+    );
+  }
   const maxLen = Math.max(...assets.map((a) => a.priceHistory.length));
   const data = Array.from({ length: maxLen }, (_, i) => {
     const point: Record<string, string | number> = { month: `M${i}` };
