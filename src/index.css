@@ -1,8 +1,10 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @layer base {
   :root {
@@ -68,7 +70,8 @@
     font-family: 'Space Grotesk', sans-serif;
   }
 
-  code, .font-mono {
+  code,
+  .font-mono {
     font-family: 'JetBrains Mono', monospace;
   }
 }
@@ -77,21 +80,27 @@
   .glow-blue {
     box-shadow: 0 0 20px hsl(var(--neon-blue) / 0.3), 0 0 60px hsl(var(--neon-blue) / 0.1);
   }
+
   .glow-amber {
     box-shadow: 0 0 20px hsl(var(--neon-amber) / 0.3), 0 0 60px hsl(var(--neon-amber) / 0.1);
   }
+
   .glow-red {
     box-shadow: 0 0 20px hsl(var(--neon-red) / 0.3), 0 0 60px hsl(var(--neon-red) / 0.1);
   }
+
   .glow-green {
     box-shadow: 0 0 20px hsl(var(--neon-green) / 0.3), 0 0 60px hsl(var(--neon-green) / 0.1);
   }
+
   .text-glow-blue {
     text-shadow: 0 0 10px hsl(var(--neon-blue) / 0.5);
   }
+
   .text-glow-amber {
     text-shadow: 0 0 10px hsl(var(--neon-amber) / 0.5);
   }
+
   .text-glow-red {
     text-shadow: 0 0 10px hsl(var(--neon-red) / 0.5);
   }

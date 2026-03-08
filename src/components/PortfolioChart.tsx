@@ -1,4 +1,4 @@
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import type { MarketAsset } from "@/hooks/useGameState";
 
 interface Props {
@@ -6,86 +6,80 @@ interface Props {
   month: number;
 }
 
-const COLORS: Record<string, string> = {
-  "nifty-etf": "hsl(142, 71%, 45%)",
-  bluechip: "hsl(210, 100%, 55%)",
-  "fo-crypto": "hsl(0, 85%, 55%)",
-};
-
-const PortfolioChart = ({ assets = [], month }: Props) => {
+const PortfolioChart = ({ assets, month }: Props) => {
+  // 1. DEFENSIVE CHECK: If assets are undefined or empty, show a loading/empty state
   if (!assets || assets.length === 0) {
     return (
-      <div className="rounded-xl border border-border bg-card p-5">
-        <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">Market Prices</h2>
-        <p className="mt-2 text-xs text-muted-foreground">No market data yet. Click "Simulate 1 Month" to begin.</p>
+      <div className="flex h-[300px] w-full items-center justify-center rounded-xl border border-border bg-card">
+        <p className="text-muted-foreground">Initializing market data...</p>
       </div>
     );
   }
-  const maxLen = Math.max(...assets.map((a) => a.priceHistory.length));
-  const data = Array.from({ length: maxLen }, (_, i) => {
-    const point: Record<string, string | number> = { month: `M${i}` };
-    assets.forEach((a) => {
-      if (i < a.priceHistory.length) {
-        point[a.id] = a.priceHistory[i];
-      }
+
+  // 2. DATA TRANSFORMATION: Convert our priceHistory arrays into the format Recharts needs
+  // We look at the first asset to see how many months of history we have
+  const historyLength = assets[0]?.priceHistory?.length || 1;
+
+  const chartData = Array.from({ length: historyLength }).map((_, index) => {
+    const dataPoint: any = { monthLabel: `M${index}` };
+
+    // Safely map each asset's price at this specific month index
+    assets.forEach((asset) => {
+      dataPoint[asset.label] = asset.priceHistory?.[index] || asset.basePrice;
     });
-    return point;
+
+    return dataPoint;
   });
 
+  // Theme colors for our 3 assets
+  const colors = ["#00f0ff", "#39ff14", "#ff003c"]; // Neon Blue, Neon Green, Neon Red
+
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-            Market Prices
-          </h2>
-          <p className="text-xs text-muted-foreground">
-            Simulated over {month} month{month !== 1 ? "s" : ""}
-          </p>
-        </div>
+    <div className="rounded-xl border border-border bg-card p-6">
+      <div className="mb-6">
+        <h3 className="text-lg font-bold">Market Performance</h3>
+        <p className="text-sm text-muted-foreground">Asset price trends over {month} simulated months.</p>
       </div>
 
-      <ResponsiveContainer width="100%" height={200}>
-        <AreaChart data={data}>
-          <defs>
-            {assets.map((a) => (
-              <linearGradient key={a.id} id={`grad-${a.id}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={COLORS[a.id]} stopOpacity={0.3} />
-                <stop offset="100%" stopColor={COLORS[a.id]} stopOpacity={0} />
-              </linearGradient>
-            ))}
-          </defs>
-          <XAxis
-            dataKey="month"
-            axisLine={false}
-            tickLine={false}
-            tick={{ fontSize: 10, fill: "hsl(215, 12%, 55%)" }}
-          />
-          <YAxis hide />
-          <Tooltip
-            contentStyle={{
-              background: "hsl(228, 15%, 14%)",
-              border: "1px solid hsl(228, 12%, 18%)",
-              borderRadius: "8px",
-              fontSize: "12px",
-              color: "hsl(210, 20%, 92%)",
-            }}
-            formatter={(value: number) => [`₹${value.toLocaleString()}`, ""]}
-          />
-          <Legend wrapperStyle={{ fontSize: "11px" }} />
-          {assets.map((a) => (
-            <Area
-              key={a.id}
-              type="monotone"
-              dataKey={a.id}
-              name={a.label}
-              stroke={COLORS[a.id]}
-              strokeWidth={2}
-              fill={`url(#grad-${a.id})`}
+      <div className="h-[300px] w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
+            <XAxis
+              dataKey="monthLabel"
+              stroke="#888"
+              fontSize={12}
+              tickLine={false}
+              axisLine={false}
             />
-          ))}
-        </AreaChart>
-      </ResponsiveContainer>
+            <YAxis
+              stroke="#888"
+              fontSize={12}
+              tickLine={false}
+              axisLine={false}
+              tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`}
+            />
+            <Tooltip
+              contentStyle={{ backgroundColor: '#111', borderColor: '#333', borderRadius: '8px' }}
+              itemStyle={{ fontWeight: 'bold' }}
+            />
+            <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+
+            {/* Dynamically generate a line for every asset that exists */}
+            {assets.map((asset, index) => (
+              <Line
+                key={asset.id}
+                type="monotone"
+                dataKey={asset.label}
+                stroke={colors[index % colors.length]}
+                strokeWidth={2}
+                dot={false}
+                activeDot={{ r: 6, strokeWidth: 0 }}
+              />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 };
