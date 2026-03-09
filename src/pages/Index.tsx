@@ -3,7 +3,7 @@ import GamifiedStaircase from "@/components/GamifiedStaircase";
 import PortfolioChart from "@/components/PortfolioChart";
 import QuickTrade from "@/components/QuickTrade";
 import PortfolioHoldings from "@/components/PortfolioHoldings";
-import { useGameState, LEVELS } from "@/hooks/useGameState";
+import { useGameState } from "@/hooks/useGameState";
 import { Button } from "@/components/ui/button";
 import { CalendarClock, FastForward, BrainCircuit, TrendingUp } from "lucide-react";
 import XpLog from "@/components/XpLog";
@@ -14,7 +14,7 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background text-foreground">
 
-      {/* NEW BRANDING NAVBAR */}
+      {/* BRANDING NAVBAR */}
       <nav className="sticky top-0 z-40 border-b border-border bg-card/80 px-6 py-4 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <div className="flex items-center gap-3">
@@ -35,7 +35,6 @@ const Index = () => {
       </nav>
 
       <main className="mx-auto max-w-7xl px-6 py-6">
-        {/* Updated FMIHeader to use the new streamlined props */}
         <FMIHeader
           score={game.xp}
           level={game.currentLevel}
@@ -43,7 +42,6 @@ const Index = () => {
 
         {/* Simulate Month + Stats Bar */}
         <div className="mb-6 mt-2 flex flex-wrap items-center gap-4 rounded-xl border border-border bg-card p-4">
-
           <Button
             onClick={game.simulateMonth}
             size="lg"
@@ -53,7 +51,6 @@ const Index = () => {
             Simulate 1 Month
           </Button>
 
-          {/* DEV OVERRIDE: Force Level Up Button */}
           <Button
             onClick={game.cheatLevelUp}
             variant="outline"
@@ -88,26 +85,20 @@ const Index = () => {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
-          {/* Left column */}
+
+          {/* LEFT COLUMN: Analytics & Progression */}
           <div className="space-y-6 lg:col-span-2">
             <GamifiedStaircase xp={game.xp} currentLevel={game.currentLevel} />
 
-            {/* Safety check to prevent chart mapping errors on load */}
             {game.assets && game.assets.length > 0 && (
               <PortfolioChart assets={game.assets} month={game.month} />
             )}
-
-            {game.portfolio && game.portfolio.length > 0 && (
-              <PortfolioHoldings
-                portfolio={game.portfolio}
-                assets={game.assets}
-                onSell={game.sellAsset}
-              />
-            )}
           </div>
 
-          {/* Right column */}
+          {/* RIGHT COLUMN: The Trading Zone (Buy, Sell, Log) */}
           <div className="space-y-6">
+
+            {/* 1. The Buy Interface */}
             <QuickTrade
               assets={game.assets || []}
               currentLevel={game.currentLevel}
@@ -117,8 +108,18 @@ const Index = () => {
               month={game.month}
             />
 
-            {/* The XP Action Log */}
+            {/* 2. The Sell Interface (Moved here!) */}
+            {game.portfolio && game.portfolio.length > 0 && (
+              <PortfolioHoldings
+                portfolio={game.portfolio}
+                assets={game.assets}
+                onSell={game.sellAsset}
+              />
+            )}
+
+            {/* 3. The Action Log */}
             <XpLog logs={game.xpLog || []} />
+
           </div>
         </div>
       </main>
