@@ -114,6 +114,7 @@ const Index = () => {
               isAssetUnlocked={game.isAssetUnlocked}
               onBuy={game.buyAsset}
               cashBalance={game.cashBalance || 0}
+              month={game.month}
             />
 
             {/* The XP Action Log */}

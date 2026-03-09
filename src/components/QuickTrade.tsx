@@ -1,9 +1,9 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import CoolDownModal from "./CoolDownModal";
-import { Zap, AlertTriangle, TrendingUp, Lock } from "lucide-react";
+import { Zap, AlertTriangle, TrendingUp, Lock, BrainCircuit, Activity } from "lucide-react";
 import type { MarketAsset } from "@/hooks/useGameState";
 
 interface Props {
@@ -12,74 +12,104 @@ interface Props {
   isAssetUnlocked: (asset: MarketAsset) => boolean;
   onBuy: (assetId: string) => boolean;
   cashBalance: number;
+  month: number; // We now track the month to reset the AI memory
 }
 
-const TRADE_WINDOW_MS = 60_000;
-const NUDGE_THRESHOLD = 3;
-const FREEZE_THRESHOLD = 5;
-
-const QuickTrade = ({ assets = [], currentLevel, isAssetUnlocked, onBuy, cashBalance }: Props) => {
+const QuickTrade = ({ assets = [], currentLevel, isAssetUnlocked, onBuy, cashBalance, month }: Props) => {
   const firstUnlocked = assets.find((a) => isAssetUnlocked(a));
   const [selectedAsset, setSelectedAsset] = useState(firstUnlocked?.id ?? assets[0]?.id ?? "");
   const [isFrozen, setIsFrozen] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [tradeCount, setTradeCount] = useState(0);
-  const tradeTimestamps = useRef<number[]>([]);
+  
+  // The new AI Risk Engine State (0 to 100)
+  const [aiRiskScore, setAiRiskScore] = useState(0);
   const { toast } = useToast();
 
   const currentAsset = assets.find((a) => a.id === selectedAsset);
   const unlocked = currentAsset ? isAssetUnlocked(currentAsset) : false;
 
+  // 1. TIME SYNC: Reset the AI Risk Score when a virtual month passes
+  useEffect(() => {
+    setAiRiskScore(0);
+  }, [month]);
+
+  // 2. REAL-TIME COOLING: The AI lowers your risk score slowly if you stop trading
+  useEffect(() => {
+    if (aiRiskScore > 0 && !isFrozen) {
+      const timer = setInterval(() => {
+        setAiRiskScore((prev) => Math.max(0, prev - 5)); // Cool down by 5 points every 2 seconds
+      }, 2000);
+      return () => clearInterval(timer);
+    }
+  }, [aiRiskScore, isFrozen]);
+
   const handleBuy = useCallback(() => {
     if (isFrozen || !currentAsset || !unlocked) return;
 
-    const now = Date.now();
-    tradeTimestamps.current = tradeTimestamps.current.filter((t) => now - t < TRADE_WINDOW_MS);
-    tradeTimestamps.current.push(now);
-    const count = tradeTimestamps.current.length;
-    setTradeCount(count);
-
-    if (count >= FREEZE_THRESHOLD) {
-      setIsFrozen(true);
-      setShowModal(true);
-      return;
+    // 3. DYNAMIC RISK EVALUATION: Penalty is based on asset volatility
+    let riskPenalty = 0;
+    switch (currentAsset.volatility) {
+      case "low": riskPenalty = 10; break;      // Safe: takes 10 rapid clicks to trigger brake
+      case "medium": riskPenalty = 25; break;   // Moderate: takes 4 clicks
+      case "high": riskPenalty = 45; break;     // Risky: takes 3 clicks
+      case "extreme": riskPenalty = 65; break;  // Extreme: takes 2 clicks to trigger the brake!
     }
 
-    if (count >= NUDGE_THRESHOLD) {
+    const newRiskScore = aiRiskScore + riskPenalty;
+    setAiRiskScore(newRiskScore);
+
+    // If score breaches 100, slam the brakes BEFORE the trade executes
+    if (newRiskScore >= 100) {
+      setIsFrozen(true);
+      setShowModal(true);
+      return; 
+    }
+
+    // Nudge the user if they are getting close to the limit
+    if (newRiskScore >= 75) {
       toast({
-        title: "⚠️ Hold up!",
-        description: `You've made ${count} trades in 1 minute. Your estimated transaction costs are ₹${count * 50}. Consider your strategy.`,
+        title: "⚠️ AI Intervention Imminent",
+        description: "Erratic, high-risk trading pattern detected. Slow down.",
         variant: "destructive",
-        duration: 5000,
+        duration: 3000,
       });
     }
 
+    // Execute the trade if the brake didn't hit
     const success = onBuy(selectedAsset);
-    if (success && count < NUDGE_THRESHOLD) {
+    if (success && newRiskScore < 75) {
       toast({
         title: "✅ Trade Executed",
         description: `Bought 1x ${currentAsset.label} at ₹${currentAsset.price.toLocaleString()}.`,
         duration: 2000,
       });
     }
-  }, [isFrozen, toast, currentAsset, unlocked, onBuy, selectedAsset]);
+  }, [isFrozen, toast, currentAsset, unlocked, onBuy, selectedAsset, aiRiskScore]);
 
   const handleCoolDownComplete = useCallback(() => {
     setShowModal(false);
     setIsFrozen(false);
-    setTradeCount(0);
-    tradeTimestamps.current = [];
+    setAiRiskScore(0); // Wipe the slate clean after punishment
     toast({ title: "🟢 Trading Resumed", description: "Cool-down complete. Trade responsibly.", duration: 3000 });
   }, [toast]);
 
+  // Visual helper for the Risk Bar color
+  const getRiskColor = () => {
+    if (aiRiskScore >= 75) return "bg-neon-red shadow-[0_0_10px_rgba(255,0,60,0.5)]";
+    if (aiRiskScore >= 40) return "bg-neon-amber shadow-[0_0_10px_rgba(255,176,0,0.5)]";
+    return "bg-neon-green";
+  };
+
   return (
     <>
-      <div className="rounded-xl border border-border bg-card p-5">
-        <div className="mb-4 flex items-center gap-2">
-          <Zap className="h-4 w-4 text-neon-blue" />
-          <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-            Quick Trade
-          </h2>
+      <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Zap className="h-4 w-4 text-neon-blue" />
+            <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
+              Quick Trade
+            </h2>
+          </div>
         </div>
 
         <div className="space-y-4">
@@ -97,9 +127,9 @@ const QuickTrade = ({ assets = [], currentLevel, isAssetUnlocked, onBuy, cashBal
                       <span className="flex items-center gap-2">
                         {asset.label}
                         {locked && <Lock className="h-3 w-3 text-muted-foreground" />}
-                        {asset.volatility === "high" && !locked && (
+                        {asset.volatility === "extreme" && !locked && (
                           <span className="rounded bg-neon-red/10 px-1.5 py-0.5 text-[10px] font-bold text-neon-red">
-                            HIGH RISK
+                            MAX RISK
                           </span>
                         )}
                         {locked && (
@@ -119,16 +149,7 @@ const QuickTrade = ({ assets = [], currentLevel, isAssetUnlocked, onBuy, cashBal
             <div className="flex items-start gap-2 rounded-lg border border-neon-red/30 bg-neon-red/5 p-3">
               <Lock className="mt-0.5 h-4 w-4 shrink-0 text-neon-red" />
               <p className="text-xs text-neon-red">
-                This asset requires Level {currentAsset.requiredLevel}. Keep earning XP to unlock it!
-              </p>
-            </div>
-          )}
-
-          {unlocked && currentAsset?.volatility === "high" && (
-            <div className="flex items-start gap-2 rounded-lg border border-neon-amber/30 bg-neon-amber/5 p-3 animate-slide-up">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-neon-amber" />
-              <p className="text-xs text-neon-amber">
-                High-volatility asset. AI Risk-Brake is active and monitoring trading velocity.
+                Requires Level {currentAsset.requiredLevel}. Keep earning XP!
               </p>
             </div>
           )}
@@ -149,14 +170,31 @@ const QuickTrade = ({ assets = [], currentLevel, isAssetUnlocked, onBuy, cashBal
             </div>
           )}
 
-          {tradeCount > 0 && (
-            <div className="flex items-center justify-between rounded-lg bg-secondary/50 px-3 py-2">
-              <span className="text-xs text-muted-foreground">Trades this minute</span>
-              <span className={`font-mono text-sm font-bold ${tradeCount >= NUDGE_THRESHOLD ? "text-neon-red text-glow-red" : "text-foreground"}`}>
-                {tradeCount} / {FREEZE_THRESHOLD}
+          {/* THE NEW AI RISK MONITOR UI */}
+          <div className="rounded-lg border border-border/50 bg-background p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground">
+                <BrainCircuit className={`h-3.5 w-3.5 ${aiRiskScore > 0 ? "text-neon-blue animate-pulse" : ""}`} />
+                AI Risk Monitor
+              </span>
+              <span className={`text-xs font-mono font-bold ${aiRiskScore >= 75 ? "text-neon-red animate-pulse" : "text-foreground"}`}>
+                {aiRiskScore}%
               </span>
             </div>
-          )}
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+              <div 
+                className={`h-full transition-all duration-300 ease-out ${getRiskColor()}`}
+                style={{ width: `${Math.min(100, aiRiskScore)}%` }}
+              />
+            </div>
+            <p className="mt-2 flex items-center gap-1 text-[9px] text-muted-foreground uppercase tracking-wider">
+              <Activity className="h-3 w-3" /> 
+              {aiRiskScore === 0 ? "Monitoring trade velocity..." : 
+               aiRiskScore < 50 ? "Normal activity detected." : 
+               aiRiskScore < 75 ? "Elevated risk velocity." : 
+               "CRITICAL: Intervention Imminent"}
+            </p>
+          </div>
 
           <Button
             onClick={handleBuy}
@@ -175,15 +213,9 @@ const QuickTrade = ({ assets = [], currentLevel, isAssetUnlocked, onBuy, cashBal
             ) : !unlocked ? (
               <><Lock className="h-4 w-4" /> LOCKED</>
             ) : (
-              <><Zap className="h-4 w-4" /> BUY</>
+              <><Zap className="h-4 w-4" /> BUY {currentAsset?.label}</>
             )}
           </Button>
-
-          <p className="text-center text-[10px] text-muted-foreground">
-            {isFrozen
-              ? "AI Risk-Brake engaged. Please wait for cool-down."
-              : "Click rapidly to demo the AI Risk-Brake friction system"}
-          </p>
         </div>
       </div>
 
